@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 
 from ivr_engine import process_query
@@ -807,6 +806,5 @@ st.caption(
 
 st.caption(
     "Model 1 = Streamlit IVR Simulator | "
-    "Model 2 = Real Telephone IVR Integration"
 )
-```
+
