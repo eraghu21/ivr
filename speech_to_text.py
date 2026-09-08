@@ -1,25 +1,21 @@
-import tempfile
 import os
+import tempfile
+import streamlit as st
+
+@st.cache_resource(show_spinner=False)
+def _load_model():
+    from faster_whisper import WhisperModel
+    return WhisperModel("base", device="cpu", compute_type="int8")
 
 def transcribe_audio(uploaded_file):
-    """
-    Uses faster-whisper locally when installed.
-    The model is downloaded on first use, so this can be slow on Streamlit Cloud.
-    """
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError:
-        raise RuntimeError("faster-whisper is not installed. Install requirements.txt first.")
-
-    suffix = os.path.splitext(uploaded_file.name)[1] or ".wav"
+    model = _load_model()
+    suffix = os.path.splitext(getattr(uploaded_file, "name", ""))[1] or ".wav"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
         f.write(uploaded_file.getbuffer())
         path = f.name
-
     try:
-        model = WhisperModel("base", device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(path, language=None)
-        return " ".join(segment.text.strip() for segment in segments).strip()
+        segments, _ = model.transcribe(path, language=None, vad_filter=True)
+        return " ".join(s.text.strip() for s in segments).strip()
     finally:
         try:
             os.remove(path)

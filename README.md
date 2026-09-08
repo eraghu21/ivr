@@ -1,56 +1,28 @@
-# 🌾 Agriculture IVR Simulator
+# 🌾 Agriculture IVR Simulator — Upgraded Model 1
 
-A Streamlit prototype for an SIH agriculture platform. It simulates an IVR/voice assistant using:
+This is an upgraded Streamlit simulator for the SIH agriculture platform.
 
-- English + Tamil menu
-- Text-based IVR queries
-- Optional speech-to-text using faster-whisper
-- Text-to-speech using gTTS
-- Demo modules for weather, market price, schemes, irrigation, fertilizer and crop disease
+## New in this version
+- Browser microphone button using `streamlit-mic-recorder`
+- English + Tamil speech input
+- Seven IVR menu options
+- Text input fallback
+- WAV/MP3/M4A/OGG/WebM upload fallback
+- Cached Faster-Whisper model for repeated use
+- Agriculture intent detection
+- Tamil/English responses
+- Text-to-speech response
 - Conversation history
+- Clean dashboard/status panel
+- Architecture ready for a future real telephone IVR layer
 
-## Run locally
-
-```bash
-python -m venv .venv
-```
-
-Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-Linux/macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Install:
-
+## Run
 ```bash
 pip install -r requirements.txt
-```
-
-Run:
-
-```bash
 streamlit run app.py
 ```
 
 ## Streamlit Cloud
+Set the main file to `app.py` and deploy the complete repository.
 
-1. Upload all files to a GitHub repository.
-2. Open Streamlit Community Cloud.
-3. Select the repository and `app.py`.
-4. Deploy.
-5. The first Whisper transcription can take time because the model may need to download.
-
-## Important
-
-The weather and market values in `agriculture_data.py` are DEMO DATA. They are not live agricultural prices/weather and must be replaced by verified official/current APIs before real deployment.
-
-## Suggested next version
-
-For the real telephone IVR, keep `ivr_engine.py` and `agriculture_data.py` as the core logic, and replace the Streamlit microphone/upload layer with a telephony/SIP layer.
+> The weather and market values are intentionally DEMO DATA. Replace them with verified live agriculture/weather APIs before production use.
