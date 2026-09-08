@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 from speech_to_text import transcribe_audio
@@ -600,4 +599,3 @@ st.divider()
 st.caption(
     T["footer"]
 )
-```
