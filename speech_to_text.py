@@ -1,4 +1,3 @@
-```python
 import io
 import os
 import tempfile
@@ -166,4 +165,4 @@ def transcribe_audio(uploaded_file):
             except Exception:
 
                 pass
-```
+
