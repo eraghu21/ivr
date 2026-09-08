@@ -1,37 +1,26 @@
 import streamlit as st
 
-from ivr_engine import process_query
+from streamlit_mic_recorder import mic_recorder
+
 from speech_to_text import transcribe_audio
-from text_to_speech import speak_text
+from text_to_speech import text_to_speech
+from ivr_engine import process_query
 
 
-# ============================================================
+# =========================================================
 # PAGE CONFIGURATION
-# ============================================================
+# =========================================================
 
 st.set_page_config(
-    page_title="Agri Voice IVR",
+    page_title="Agriculture IVR Assistant",
     page_icon="🌾",
     layout="wide"
 )
 
 
-# ============================================================
-# MICROPHONE COMPONENT
-# ============================================================
-
-try:
-    from streamlit_mic_recorder import mic_recorder
-
-    MIC_AVAILABLE = True
-
-except Exception:
-    MIC_AVAILABLE = False
-
-
-# ============================================================
+# =========================================================
 # SESSION STATE
-# ============================================================
+# =========================================================
 
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -49,461 +38,220 @@ if "voice_question" not in st.session_state:
     st.session_state.voice_question = None
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# =========================================================
+# HEADER
+# =========================================================
+
+st.title("🌾 Agriculture IVR Assistant")
 
 st.markdown(
     """
-    <style>
+    **Voice-based Agriculture Information System**
 
-    .block-container {
-        padding-top: 1.5rem;
-        max-width: 1150px;
-    }
-
-    .ivr-card {
-        padding: 18px;
-        border: 1px solid #ddd;
-        border-radius: 14px;
-        background: rgba(128,128,128,.06);
-        margin-bottom: 15px;
-    }
-
-    .voice-card {
-        padding: 20px;
-        border: 2px solid #ddd;
-        border-radius: 15px;
-        margin-top: 10px;
-        margin-bottom: 15px;
-    }
-
-    .small {
-        font-size: .9rem;
-        opacity: .75;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
+    Ask questions about:
+    - 🌦️ Weather
+    - 💰 Market Prices
+    - 🌱 Fertilizer
+    - 💧 Irrigation
+    - 🐛 Crop Disease
+    - 🏛️ Government Schemes
+    - 🌾 Crop Information
+    """
 )
 
 
-# ============================================================
-# TITLE
-# ============================================================
-
-st.title("🌾 Agri Voice IVR Simulator")
-
-st.caption(
-    "SIH Agriculture Platform • Simulator Mode • English + Tamil"
-)
-
-
-# ============================================================
+# =========================================================
 # SIDEBAR
-# ============================================================
+# =========================================================
 
 with st.sidebar:
 
     st.header("⚙️ IVR Settings")
 
     language = st.selectbox(
-        "Language / மொழி",
-        ["English", "தமிழ்"]
+        "Select Language",
+        [
+            "English",
+            "தமிழ்"
+        ]
     )
 
     st.divider()
 
     st.subheader("📞 IVR Menu")
 
-    menu = {
+    menu = st.radio(
+        "Select Service",
+        [
+            "🌦️ Weather",
+            "💰 Market Price",
+            "🌱 Fertilizer",
+            "💧 Irrigation",
+            "🐛 Crop Disease",
+            "🏛️ Government Schemes",
+            "🌾 Crop Information"
+        ]
+    )
 
-        "English": [
+    st.divider()
 
-            ("1", "Crop Disease", "crop disease"),
+    st.info(
+        """
+        Demo Version
 
-            ("2", "Weather", "weather"),
+        Weather and market-price values are currently demo data.
+        Live agriculture APIs can be connected later.
+        """
+    )
 
-            ("3", "Market Price", "tomato market price"),
 
-            ("4", "Government Schemes", "government schemes"),
+# =========================================================
+# MAIN COLUMNS
+# =========================================================
 
-            ("5", "Irrigation Advice", "tomato irrigation"),
+col1, col2 = st.columns(2)
 
-            ("6", "Fertilizer Advice", "tomato fertilizer"),
 
-            ("7", "Farmer Help", "help"),
+# =========================================================
+# VOICE SECTION
+# =========================================================
 
-        ],
+with col1:
 
-        "தமிழ்": [
+    st.subheader("🎤 Voice Question")
 
-            ("1", "பயிர் நோய்", "பயிர் நோய்"),
+    st.write(
+        "Click **Start Speaking**, ask your agriculture question, "
+        "then stop recording."
+    )
 
-            ("2", "வானிலை", "வானிலை"),
+    # -----------------------------------------------------
+    # MICROPHONE
+    # -----------------------------------------------------
 
-            ("3", "சந்தை விலை", "தக்காளி சந்தை விலை"),
+    recorded = mic_recorder(
+        start_prompt="🎤 Start Speaking",
+        stop_prompt="⏹️ Stop Recording",
+        just_once=True,
+        use_container_width=True,
+        format="wav",
+        key="agri_voice_recorder"
+    )
 
-            ("4", "அரசு திட்டங்கள்", "அரசு திட்டங்கள்"),
+    # -----------------------------------------------------
+    # Store recording
+    # -----------------------------------------------------
 
-            ("5", "பாசன ஆலோசனை", "தக்காளி பாசனம்"),
+    if recorded:
 
-            ("6", "உர ஆலோசனை", "தக்காளி உரம்"),
+        audio_bytes = None
 
-            ("7", "விவசாயி உதவி", "உதவி"),
+        # mic_recorder returns a dictionary
+        if isinstance(recorded, dict):
 
-        ],
-    }
+            audio_bytes = recorded.get("bytes")
 
-    for number, label, example in menu[language]:
+        # Safety fallback
+        elif isinstance(recorded, bytes):
 
-        if st.button(
-            f"{number}  {label}",
-            use_container_width=True,
-            key=f"menu_{number}_{language}"
-        ):
+            audio_bytes = recorded
 
-            st.session_state.query = example
+        if audio_bytes:
+
+            st.session_state.recorded_audio = audio_bytes
 
             st.session_state.voice_question = None
 
+    # -----------------------------------------------------
+    # PLAY RECORDING
+    # -----------------------------------------------------
 
-# ============================================================
-# MAIN COLUMNS
-# ============================================================
+    if st.session_state.recorded_audio:
 
-left, right = st.columns(
-    [1.35, 0.65]
-)
+        st.success("✅ Voice recorded successfully")
 
-
-# ============================================================
-# LEFT COLUMN
-# ============================================================
-
-with left:
-
-    st.subheader(
-        "🎙️ Speak or type your question"
-    )
-
-
-    # ========================================================
-    # VOICE RECORDING
-    # ========================================================
-
-    st.markdown(
-        '<div class="voice-card">',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        "### 🎤 Voice Question"
-    )
-
-    st.caption(
-        "Step 1: Start speaking → Step 2: Stop → "
-        "Step 3: Check recording → Step 4: Send"
-    )
-
-
-    if MIC_AVAILABLE:
-
-        # ----------------------------------------------------
-        # RECORD BUTTON
-        # ----------------------------------------------------
-
-        recorded = mic_recorder(
-
-            start_prompt="🎤 Start Speaking",
-
-            stop_prompt="⏹️ Stop Recording",
-
-            just_once=True,
-
-            use_container_width=True,
-
-            format="wav",
-
-            key="agri_voice_recorder"
+        st.audio(
+            st.session_state.recorded_audio,
+            format="audio/wav"
         )
 
+        st.write("Listen to your recording before sending it.")
 
-        # ----------------------------------------------------
-        # SAVE RECORDING
-        # ----------------------------------------------------
+        # -------------------------------------------------
+        # Buttons
+        # -------------------------------------------------
 
-        if recorded:
+        send_col, retry_col = st.columns(2)
 
-            if isinstance(recorded, dict):
+        with send_col:
 
-                audio_bytes = recorded.get("bytes")
-
-            else:
-
-                audio_bytes = recorded
-
-
-            if audio_bytes:
-
-                st.session_state.recorded_audio = audio_bytes
-
-                st.session_state.voice_question = None
-
-
-        # ----------------------------------------------------
-        # CHECK RECORDED AUDIO
-        # ----------------------------------------------------
-
-        if st.session_state.recorded_audio:
-
-            st.success(
-                "✅ Voice recording completed"
+            send_voice = st.button(
+                "📤 Send Voice Question",
+                use_container_width=True,
+                type="primary"
             )
 
-            st.markdown(
-                "#### 🔊 Check your recording"
+        with retry_col:
+
+            retry_voice = st.button(
+                "🔄 Record Again",
+                use_container_width=True
             )
 
-            st.audio(
-                st.session_state.recorded_audio,
-                format="audio/wav"
-            )
+        # -------------------------------------------------
+        # RECORD AGAIN
+        # -------------------------------------------------
 
-            st.caption(
-                "Listen to the recording above. "
-                "If it is clear, click Send Voice Question."
-            )
+        if retry_voice:
 
+            st.session_state.recorded_audio = None
+            st.session_state.voice_question = None
 
-            # ------------------------------------------------
-            # ACTION BUTTONS
-            # ------------------------------------------------
+            st.rerun()
 
-            col_voice_1, col_voice_2 = st.columns(2)
+        # -------------------------------------------------
+        # SEND VOICE QUESTION
+        # -------------------------------------------------
 
-
-            with col_voice_1:
-
-                send_voice = st.button(
-
-                    "📤 Send Voice Question",
-
-                    type="primary",
-
-                    use_container_width=True,
-
-                    key="send_voice_question"
-                )
-
-
-            with col_voice_2:
-
-                record_again = st.button(
-
-                    "🔄 Record Again",
-
-                    use_container_width=True,
-
-                    key="record_again"
-                )
-
-
-            # ------------------------------------------------
-            # RECORD AGAIN
-            # ------------------------------------------------
-
-            if record_again:
-
-                st.session_state.recorded_audio = None
-
-                st.session_state.voice_question = None
-
-                st.rerun()
-
-
-            # ------------------------------------------------
-            # SEND VOICE QUESTION
-            # ------------------------------------------------
-
-            if send_voice:
-
-                with st.spinner(
-                    "🧠 Converting your voice into text..."
-                ):
-
-                    try:
-
-                        text = transcribe_audio(
-                            st.session_state.recorded_audio
-                        )
-
-
-                        # ------------------------------------
-                        # CHECK RESULT
-                        # ------------------------------------
-
-                        if text and text.strip():
-
-                            text = text.strip()
-
-                            st.session_state.query = text
-
-                            st.session_state.voice_question = text
-
-
-                            st.success(
-                                "✅ Voice question received"
-                            )
-
-
-                            st.markdown(
-                                "### 🗣️ You asked"
-                            )
-
-                            st.info(text)
-
-
-                            st.rerun()
-
-
-                        else:
-
-                            st.warning(
-                                "⚠️ I could not understand "
-                                "the recording."
-                            )
-
-                            st.info(
-                                "Please click Record Again "
-                                "and speak clearly."
-                            )
-
-
-                    except Exception as e:
-
-                        st.error(
-                            "❌ Speech recognition failed"
-                        )
-
-                        st.exception(e)
-
-
-    else:
-
-        st.warning(
-            "🎤 Browser microphone component "
-            "is not available."
-        )
-
-        st.info(
-            "Please install streamlit-mic-recorder "
-            "or use the audio upload option below."
-        )
-
-
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-
-    # ========================================================
-    # SHOW RECOGNIZED VOICE QUESTION
-    # ========================================================
-
-    if st.session_state.voice_question:
-
-        st.success(
-            "🗣️ Recognized Voice Question"
-        )
-
-        st.write(
-            st.session_state.voice_question
-        )
-
-
-    # ========================================================
-    # TEXT QUESTION
-    # ========================================================
-
-    query = st.text_area(
-
-        "Question / கேள்வி",
-
-        value=st.session_state.query,
-
-        height=90,
-
-        placeholder=(
-            "Example: What is the tomato market price today? "
-            "/ தக்காளி விலை என்ன?"
-        ),
-
-        key="query_box"
-    )
-
-
-    st.session_state.query = query
-
-
-    # ========================================================
-    # AUDIO UPLOAD FALLBACK
-    # ========================================================
-
-    st.markdown(
-        "### 📁 Alternative: Upload Voice Recording"
-    )
-
-    audio = st.file_uploader(
-
-        "Upload an audio recording",
-
-        type=[
-            "wav",
-            "mp3",
-            "m4a",
-            "ogg",
-            "webm"
-        ],
-
-        help=(
-            "Use this option if the browser microphone "
-            "does not work."
-        ),
-
-        key="audio_upload"
-    )
-
-
-    if audio:
-
-        if st.button(
-            "📝 Convert Uploaded Audio",
-            use_container_width=True,
-            key="convert_uploaded_audio"
-        ):
+        if send_voice:
 
             with st.spinner(
-                "🧠 Converting speech to text..."
+                "🎙️ Converting your voice to text..."
             ):
 
                 try:
 
-                    text = transcribe_audio(audio)
+                    # -------------------------------------
+                    # Select Whisper language
+                    # -------------------------------------
 
-                    if text and text.strip():
+                    whisper_language = (
+                        "ta"
+                        if language == "தமிழ்"
+                        else "en"
+                    )
 
-                        st.session_state.query = text.strip()
+                    # -------------------------------------
+                    # Speech recognition
+                    # -------------------------------------
+
+                    text = transcribe_audio(
+                        st.session_state.recorded_audio,
+                        language=whisper_language
+                    )
+
+                    # -------------------------------------
+                    # Recognition result
+                    # -------------------------------------
+
+                    if text:
+
+                        st.session_state.query = text
+
+                        st.session_state.voice_question = text
 
                         st.success(
-                            "✅ Speech converted successfully"
-                        )
-
-                        st.write(
-                            "**You said:**",
-                            text
+                            "✅ Voice converted successfully"
                         )
 
                         st.rerun()
@@ -511,300 +259,221 @@ with left:
                     else:
 
                         st.warning(
-                            "⚠️ No speech could be detected."
+                            "⚠️ I could not understand the recording."
+                        )
+
+                        st.info(
+                            "Please speak clearly, keep the microphone "
+                            "close, and try again."
                         )
 
                 except Exception as e:
 
                     st.error(
-                        f"❌ Speech recognition failed: {e}"
+                        f"Voice recognition error: {e}"
                     )
 
 
-    # ========================================================
-    # ASK BUTTON
-    # ========================================================
+# =========================================================
+# TEXT QUESTION SECTION
+# =========================================================
 
-    ask = st.button(
+with col2:
 
-        "🌾 Ask Agriculture Assistant",
+    st.subheader("⌨️ Type Your Question")
 
-        type="primary",
+    text_question = st.text_area(
+        "Agriculture Question",
+        value=st.session_state.query,
+        height=150,
+        placeholder=(
+            "Example:\n"
+            "What is today's rice price?\n\n"
+            "தமிழில்:\n"
+            "நெல்லுக்கு என்ன உரம் போட வேண்டும்?"
+        )
+    )
 
+    if st.button(
+        "📝 Ask Agriculture Assistant",
         use_container_width=True,
+        type="primary"
+    ):
 
-        key="ask_agriculture"
-    )
+        if text_question.strip():
 
-
-    if ask:
-
-        current_query = st.session_state.query.strip()
-
-
-        if not current_query:
-
-            st.warning(
-                "Please speak, type a question, "
-                "or choose an IVR menu option."
-            )
-
-
-        else:
-
-            with st.spinner(
-                "🤖 Processing your agriculture question..."
-            ):
-
-                try:
-
-                    result = process_query(
-                        current_query,
-                        language
-                    )
-
-
-                    st.session_state.last_result = result
-
-
-                    st.session_state.history.append({
-
-                        "query": current_query,
-
-                        "response": result.get(
-                            "response",
-                            ""
-                        ),
-
-                        "intent": result.get(
-                            "intent",
-                            "unknown"
-                        ),
-
-                        "language": language,
-
-                    })
-
-
-                except Exception as e:
-
-                    st.error(
-                        f"❌ IVR processing failed: {e}"
-                    )
-
-
-# ============================================================
-# RIGHT COLUMN - IVR STATUS
-# ============================================================
-
-with right:
-
-    st.subheader(
-        "📞 Simulator Status"
-    )
-
-
-    st.markdown(
-        '<div class="ivr-card">',
-        unsafe_allow_html=True
-    )
-
-
-    st.metric(
-        "Mode",
-        "SIMULATOR"
-    )
-
-
-    st.metric(
-        "Language",
-        language
-    )
-
-
-    st.metric(
-        "Calls / Queries",
-        len(st.session_state.history)
-    )
-
-
-    st.markdown(
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-
-    st.info(
-        "The same IVR engine can later be connected "
-        "to a real telephone/SIP provider."
-    )
-
-
-    # ========================================================
-    # CURRENT QUERY STATUS
-    # ========================================================
-
-    if st.session_state.query:
-
-        st.markdown(
-            '<div class="ivr-card">',
-            unsafe_allow_html=True
-        )
-
-        st.markdown(
-            "### 📝 Current Question"
-        )
-
-        st.write(
-            st.session_state.query
-        )
-
-        st.markdown(
-            "</div>",
-            unsafe_allow_html=True
-        )
-
-
-# ============================================================
-# AGRICULTURE RESPONSE
-# ============================================================
-
-if st.session_state.last_result:
-
-    result = st.session_state.last_result
-
-
-    st.divider()
-
-
-    st.subheader(
-        "🤖 Agriculture Assistant Response"
-    )
-
-
-    response_text = result.get(
-        "response",
-        "No response available."
-    )
-
-
-    st.success(
-        response_text
-    )
-
-
-    st.caption(
-        "Detected intent: "
-        f"`{result.get('intent', 'unknown')}`"
-    )
-
-
-    # ========================================================
-    # RESPONSE BUTTONS
-    # ========================================================
-
-    response_col1, response_col2 = st.columns(2)
-
-
-    with response_col1:
-
-        if st.button(
-            "🔊 Play Voice Response",
-            use_container_width=True,
-            key="play_voice_response"
-        ):
-
-            try:
-
-                with st.spinner(
-                    "🔊 Generating voice response..."
-                ):
-
-                    audio_bytes = speak_text(
-                        response_text,
-                        language
-                    )
-
-
-                st.audio(
-                    audio_bytes,
-                    format="audio/mp3",
-                    autoplay=False
-                )
-
-
-            except Exception as e:
-
-                st.warning(
-                    f"⚠️ TTS could not be generated: {e}"
-                )
-
-
-    with response_col2:
-
-        if st.button(
-            "🧹 Clear Current Question",
-            use_container_width=True,
-            key="clear_question"
-        ):
-
-            st.session_state.query = ""
-
-            st.session_state.last_result = None
-
-            st.session_state.recorded_audio = None
+            st.session_state.query = text_question.strip()
 
             st.session_state.voice_question = None
 
             st.rerun()
 
+        else:
 
-# ============================================================
+            st.warning(
+                "Please enter an agriculture question."
+            )
+
+
+# =========================================================
+# RECOGNIZED VOICE QUESTION
+# =========================================================
+
+if st.session_state.voice_question:
+
+    st.divider()
+
+    st.subheader("🎙️ Recognized Voice Question")
+
+    st.info(
+        st.session_state.voice_question
+    )
+
+
+# =========================================================
+# PROCESS QUESTION
+# =========================================================
+
+if st.session_state.query:
+
+    query = st.session_state.query.strip()
+
+    if query:
+
+        st.divider()
+
+        st.subheader("🌾 Agriculture Assistant")
+
+        # -------------------------------------------------
+        # Process IVR request
+        # -------------------------------------------------
+
+        try:
+
+            result = process_query(
+                query,
+                language
+            )
+
+        except TypeError:
+
+            # Compatibility with older ivr_engine.py
+            result = process_query(query)
+
+        except Exception as e:
+
+            st.error(
+                f"IVR processing error: {e}"
+            )
+
+            result = None
+
+        # -------------------------------------------------
+        # Display result
+        # -------------------------------------------------
+
+        if result:
+
+            # Some versions return dictionary
+            if isinstance(result, dict):
+
+                response = result.get(
+                    "response",
+                    result.get(
+                        "text",
+                        str(result)
+                    )
+                )
+
+            else:
+
+                response = str(result)
+
+            st.session_state.last_result = response
+
+            # -------------------------------------------------
+            # Response
+            # -------------------------------------------------
+
+            st.success("🤖 Agriculture IVR Response")
+
+            st.write(response)
+
+            # -------------------------------------------------
+            # Text to Speech
+            # -------------------------------------------------
+
+            try:
+
+                audio_response = text_to_speech(
+                    response,
+                    language="ta"
+                    if language == "தமிழ்"
+                    else "en"
+                )
+
+                if audio_response:
+
+                    st.audio(
+                        audio_response,
+                        format="audio/mp3"
+                    )
+
+            except Exception as e:
+
+                st.warning(
+                    f"Text-to-speech unavailable: {e}"
+                )
+
+            # -------------------------------------------------
+            # History
+            # -------------------------------------------------
+
+            st.session_state.history.append(
+                {
+                    "question": query,
+                    "response": response
+                }
+            )
+
+        else:
+
+            st.warning(
+                "Sorry, I could not generate an agriculture response."
+            )
+
+
+# =========================================================
 # CONVERSATION HISTORY
-# ============================================================
+# =========================================================
 
 if st.session_state.history:
 
     st.divider()
 
-
-    st.subheader(
-        "🗣️ Conversation History"
-    )
-
+    st.subheader("🗣️ Conversation History")
 
     for item in reversed(
         st.session_state.history[-10:]
     ):
 
         with st.expander(
-            f"👨‍🌾 {item['query']}"
+            f"❓ {item['question']}"
         ):
 
             st.write(
+                "🤖",
                 item["response"]
             )
 
-            st.caption(
-                f"Intent: {item['intent']} • "
-                f"Language: {item['language']}"
-            )
 
-
-# ============================================================
+# =========================================================
 # FOOTER
-# ============================================================
+# =========================================================
 
 st.divider()
 
-
 st.caption(
-    "⚠️ Demo weather and market values are not live data. "
-    "Replace them with verified official APIs before production deployment."
+    "🌾 Agriculture IVR Simulator | "
+    "Tamil + English Voice Assistant"
 )
-
-
-st.caption(
-    "Model 1 = Streamlit IVR Simulator | "
-)
-
