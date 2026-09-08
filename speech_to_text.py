@@ -1,27 +1,15 @@
-import io
 import os
 import tempfile
-
 from faster_whisper import WhisperModel
 
-
-# ============================================================
-# WHISPER MODEL
-# ============================================================
 
 _model = None
 
 
 def get_model():
-    """
-    Load Whisper only once.
-    This avoids loading the model for every question.
-    """
-
     global _model
 
     if _model is None:
-
         _model = WhisperModel(
             "small",
             device="cpu",
@@ -31,138 +19,87 @@ def get_model():
     return _model
 
 
-# ============================================================
-# SPEECH TO TEXT
-# ============================================================
-
-def transcribe_audio(uploaded_file):
+def transcribe_audio(audio_data, language="ta"):
     """
-    Convert uploaded/recorded audio to text.
+    Convert microphone WAV bytes to text.
 
-    Supports:
-        1. Streamlit UploadedFile
-        2. bytes
-        3. bytearray
-        4. BytesIO
+    language:
+        ta = Tamil
+        en = English
+        None = automatic detection
     """
 
-    # --------------------------------------------------------
-    # GET AUDIO BYTES
-    # --------------------------------------------------------
+    if audio_data is None:
+        return ""
 
-    if isinstance(uploaded_file, bytes):
+    # Convert input to bytes
+    if isinstance(audio_data, bytes):
+        audio_bytes = audio_data
 
-        audio_bytes = uploaded_file
+    elif isinstance(audio_data, bytearray):
+        audio_bytes = bytes(audio_data)
 
+    elif hasattr(audio_data, "getvalue"):
+        audio_bytes = audio_data.getvalue()
 
-    elif isinstance(uploaded_file, bytearray):
+    elif hasattr(audio_data, "read"):
+        audio_bytes = audio_data.read()
 
-        audio_bytes = bytes(uploaded_file)
-
-
-    elif hasattr(uploaded_file, "getvalue"):
-
-        # Streamlit UploadedFile / BytesIO
-        audio_bytes = uploaded_file.getvalue()
-
-
-    elif hasattr(uploaded_file, "read"):
-
-        audio_bytes = uploaded_file.read()
-
+    elif hasattr(audio_data, "getbuffer"):
+        audio_bytes = bytes(audio_data.getbuffer())
 
     else:
-
         raise TypeError(
-            "Unsupported audio input type: "
-            f"{type(uploaded_file)}"
+            f"Unsupported audio type: {type(audio_data)}"
         )
-
 
     if not audio_bytes:
-
-        raise ValueError(
-            "The recorded audio is empty."
-        )
-
-
-    # --------------------------------------------------------
-    # SAVE TEMPORARY AUDIO FILE
-    # --------------------------------------------------------
+        return ""
 
     temp_path = None
 
     try:
 
+        # Save microphone recording
         with tempfile.NamedTemporaryFile(
             delete=False,
             suffix=".wav"
-        ) as temp_file:
-
-            temp_file.write(audio_bytes)
-
-            temp_path = temp_file.name
-
-
-        # ----------------------------------------------------
-        # LOAD WHISPER
-        # ----------------------------------------------------
+        ) as f:
+            f.write(audio_bytes)
+            temp_path = f.name
 
         model = get_model()
 
-
-        # ----------------------------------------------------
-        # TRANSCRIBE
-        # ----------------------------------------------------
-
+        # IMPORTANT:
+        # Force Tamil or English instead of automatic detection
         segments, info = model.transcribe(
-
             temp_path,
-
+            language=language,
             beam_size=5,
-
+            best_of=5,
+            temperature=0,
             vad_filter=True,
-
+            vad_parameters=dict(
+                min_silence_duration_ms=500
+            ),
             condition_on_previous_text=False
         )
 
-
-        # ----------------------------------------------------
-        # COMBINE SEGMENTS
-        # ----------------------------------------------------
-
-        text_parts = []
+        result = []
 
         for segment in segments:
+            text = segment.text.strip()
 
-            segment_text = segment.text.strip()
+            if text:
+                result.append(text)
 
-            if segment_text:
+        return " ".join(result).strip()
 
-                text_parts.append(
-                    segment_text
-                )
-
-
-        text = " ".join(text_parts).strip()
-
-
-        return text
-
+    except Exception as e:
+        print("Speech recognition error:", e)
+        return ""
 
     finally:
 
-        # ----------------------------------------------------
-        # DELETE TEMP FILE
-        # ----------------------------------------------------
-
         if temp_path and os.path.exists(temp_path):
-
-            try:
-
-                os.remove(temp_path)
-
-            except Exception:
-
-                pass
-
+            os.remove(temp_path)
